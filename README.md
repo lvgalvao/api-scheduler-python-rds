@@ -1,3 +1,7 @@
+Aqui está o README atualizado, incluindo dois diagramas de arquitetura em Mermaid para ilustrar a configuração da infraestrutura na AWS.
+
+---
+
 # **Bootcamp Cloud: Aula 08: Criando um Código Python com Schedule e Requests para Consultar APIs e Salvar em um RDS**
 
 **Objetivo**: Nesta aula, você aprenderá a desenvolver um código Python que usa as bibliotecas `schedule` e `requests` para bater em uma API a cada 5 minutos e salvar os dados em um banco de dados RDS PostgreSQL hospedado na AWS. O projeto será implementado em um ambiente Docker, utilizando GitHub para versionamento e controle de código. Você também aprenderá a configurar toda a infraestrutura necessária na AWS, incluindo a criação de uma VPC, sub-redes, e grupos de segurança.
@@ -114,6 +118,21 @@ CMD ["python", "main.py"]
    - Em **Route Tables**, edite a tabela associada à sua VPC.
    - Adicione uma rota para `0.0.0.0/0` apontando para o Internet Gateway.
 
+#### **Diagrama da VPC e Sub-rede**
+
+```mermaid
+graph TD
+    VPC["VPC (10.0.0.0/16)"]
+    Subnet["Sub-rede Pública (10.0.1.0/24)"]
+    IGW["Internet Gateway"]
+    RouteTable["Tabela de Roteamento"]
+
+    VPC --> Subnet
+    VPC --> IGW
+    Subnet --> RouteTable
+    RouteTable --> IGW
+```
+
 #### **2. Criando a Instância do RDS na Rede Pública**
 
 1. **Configuração do Banco de Dados no RDS**:
@@ -135,6 +154,23 @@ CMD ["python", "main.py"]
 
 2. **Conectar à Instância EC2 e Configurar o Ambiente**:
    - Conecte-se à instância via SSH usando AWS Systems Manager ou o terminal.
+
+#### **Diagrama da Configuração da Infraestrutura Completa**
+
+```mermaid
+graph LR
+    subgraph AWS
+        EC2["Instância EC2"]
+        RDS["Banco de Dados RDS"]
+        VPC2["VPC"]
+        IGW2["Internet Gateway"]
+        
+        VPC2 --> EC2
+        VPC2 --> RDS
+        VPC2 --> IGW2
+    end
+    EC2 -->|Consulta API e Salva Dados| RDS
+```
 
 **Comandos para Instalar Dependências e Rodar o Docker**:
 
@@ -172,4 +208,3 @@ sudo docker run -d --name api-schedule-app-container api-schedule-app
 ### **Conclusão**
 
 Essa aula mostra como configurar um ambiente completo de desenvolvimento com Python, Docker, GitHub, e AWS, criando uma aplicação que interage com APIs e armazena dados em um RDS PostgreSQL. Esse conhecimento é essencial para automatizar tarefas e integrar serviços de forma eficiente em ambientes de nuvem.
-
