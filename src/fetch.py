@@ -1,9 +1,12 @@
 from requests import Session
 from requests.exceptions import ConnectionError, Timeout, TooManyRedirects
 from dotenv import load_dotenv
+import schedule
 import json
 import os
-from pprint import pprint
+import time
+import psycopg2
+from psycopg2 import sql
 
 # Carregar variáveis do arquivo .env
 load_dotenv()
@@ -27,15 +30,70 @@ headers = {
 session = Session()
 session.headers.update(headers)
 
-response = session.get(url,params=parameters)
-print(response)
+# Configuração do banco de dados RDS
+DB_HOST = os.getenv("DB_HOST")
+DB_NAME = os.getenv("DB_NAME")
+DB_USER = os.getenv("DB_USER")
+DB_PASS = os.getenv("DB_PASS")
 
-data = json.loads(response.text)
-print(type(data))
-pprint(data)
+# Função para criar a tabela caso ainda não exista
+def criar_tabela():
+    try:
+        conn = psycopg2.connect(
+            host=DB_HOST,
+            database=DB_NAME,
+            user=DB_USER,
+            password=DB_PASS
+        )
+        cursor = conn.cursor()
+        
+        # Criação da tabela
+        create_table_query = '''
+        CREATE TABLE IF NOT EXISTS bitcoin_quotes (
+            id SERIAL PRIMARY KEY,
+            price NUMERIC,
+            volume_24h NUMERIC,
+            market_cap NUMERIC,
+            last_updated TIMESTAMP
+        );
+        '''
+        cursor.execute(create_table_query)
+        conn.commit()
+        cursor.close()
+        conn.close()
+        print("Tabela criada ou já existente.")
+    except Exception as e:
+        print(f"Erro ao criar a tabela: {e}")
 
+# Função para salvar os dados no banco de dados
+def salvar_no_rds(usd_quote):
+    try:
+        conn = psycopg2.connect(
+            host=DB_HOST,
+            database=DB_NAME,
+            user=DB_USER,
+            password=DB_PASS
+        )
+        cursor = conn.cursor()
+        
+        # Inserção dos dados na tabela
+        insert_query = sql.SQL(
+            "INSERT INTO bitcoin_quotes (price, volume_24h, market_cap, last_updated) VALUES (%s, %s, %s, %s)"
+        )
+        cursor.execute(insert_query, (
+            usd_quote['price'],
+            usd_quote['volume_24h'],
+            usd_quote['market_cap'],
+            usd_quote['last_updated']
+        ))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        print("Dados salvos com sucesso!")
+    except Exception as e:
+        print(f"Erro ao salvar dados no RDS: {e}")
 
-# Função que faz a requisição à API e imprime a última cotação do Bitcoin
+# Função que faz a requisição à API e salva a última cotação do Bitcoin
 def consultar_cotacao_bitcoin():
     try:
         response = session.get(url, params=parameters)
@@ -46,16 +104,23 @@ def consultar_cotacao_bitcoin():
             bitcoin_data = data['data']['BTC']
             usd_quote = bitcoin_data['quote']['USD']
             
-            # Imprimir os dados da cotação
-            print(f"Última cotação do Bitcoin: ${usd_quote['price']:.2f} USD")
-            print(f"Volume 24h: ${usd_quote['volume_24h']:.2f} USD")
-            print(f"Market Cap: ${usd_quote['market_cap']:.2f} USD")
-            print(f"Última atualização: {usd_quote['last_updated']}")
+            # Salvar os dados no banco de dados
+            salvar_no_rds(usd_quote)
         else:
             print("Erro ao obter a cotação do Bitcoin:", data['status'].get('error_message', 'Erro desconhecido'))
 
     except (ConnectionError, Timeout, TooManyRedirects) as e:
         print(f"Erro na requisição: {e}")
 
-# Executa a função para consultar a cotação do Bitcoin
-# consultar_cotacao_bitcoin()
+# Criar a tabela no banco de dados
+criar_tabela()
+
+# Agendar a função para rodar a cada 15 segundos
+schedule.every(15).seconds.do(consultar_cotacao_bitcoin)
+
+# Loop principal para manter o agendamento ativo
+if __name__ == "__main__":
+    print("Iniciando o agendamento para consultar a API a cada 15 segundos...")
+    while True:
+        schedule.run_pending()
+        time.sleep(1)
